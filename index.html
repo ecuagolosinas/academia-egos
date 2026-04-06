@@ -79,19 +79,18 @@ function Tutor({userName}){
     const nm=[...msgs,{r:"user",c:m}];
     setMsgs(nm);
     setTload(true);
-    // Devolver foco al input inmediatamente tras limpiar
     if(inputRef.current) inputRef.current.focus();
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",headers:{"Content-Type":"application/json"},
+      const res=await fetch(SHEETS_URL,{
+        method:"POST",
+        headers:{"Content-Type":"text/plain"},
         body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",max_tokens:800,
-          system:"Eres el Tutor Virtual de la Academia EGOS de ECUAGOLOSINAS (empresa ecuatoriana de confitería). Ayuda a operarios con el SGC. Responde en español, tono amigable y profesional. Conocimiento: codificación Tipo-Área-NN, 10 secciones en procedimientos, pesos recolección caramelo 15kg/chupete 10kg/paleta 5kg, ciclos amasado caramelo 2/chupete varios colores 2/chupete 1 color 3, I-PR-06 alistamiento caramelo 6 puntos, I-PR-11 PCC bastonadora 74°C y egalizador 140°C, PNC meta 2%, BPM EPP obligatorio, SSO D.E.2393 LOTO.",
+          type:"bot",
           messages:nm.map(x=>({role:x.r==="user"?"user":"assistant",content:x.c}))
         })
       });
       const d=await res.json();
-      setMsgs(prev=>[...prev,{r:"ai",c:d.content?.[0]?.text||"Error al responder."}]);
+      setMsgs(prev=>[...prev,{r:"ai",c:d.text||"No pude responder."}]);
     }catch{
       setMsgs(prev=>[...prev,{r:"ai",c:"⚠️ Error de conexión. Intenta de nuevo."}]);
     }
