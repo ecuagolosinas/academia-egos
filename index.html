@@ -188,7 +188,7 @@ function App(){
     try{
       const res=await fetch(SHEETS_URL+"?cedula="+encodeURIComponent(cedulaIn.trim()));
       const d=await res.json();
-      const cursosArr=d.cursos?d.cursos.split(",").filter(Boolean):[];
+      const cursosArr=d.cursos?String(d.cursos).split(",").filter(Boolean):[];
       const progObj={};
       cursosArr.forEach(id=>{progObj[String(id).trim()]="cert";});
       setProg(progObj);
