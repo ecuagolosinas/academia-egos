@@ -24,7 +24,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useRef,useEffect}=React;
+const {useState,useRef,useEffect,useCallback}=React;
 const RED="#CC0000";
 const SHEETS_URL="https://script.google.com/macros/s/AKfycbyZBiYR6GG4VAOIePvPLJHSjTF1zEYsPaTflbLJGSi1l-9Kfd2yDm9IRiVH5HavJxE/exec";
 const ROLES=["Operario de Línea","Supervisor de Producción","Jefe de Producción","Responsable de Calidad","Gerente de Operaciones","Administrador"];
@@ -55,6 +55,86 @@ function Loading(){
       React.createElement("div",{style:{height:"100%",width:"70%",background:RED,borderRadius:2}}))
   );
 }
+
+// ── TUTOR: componente definido FUERA de App para evitar que React lo desmonte en cada render ──
+function Tutor({userName}){
+  const[open,setOpen]=useState(false);
+  const[msgs,setMsgs]=useState([]);
+  const[tin,setTin]=useState("");
+  const[tload,setTload]=useState(false);
+  const chatRef=useRef(null);
+  const inputRef=useRef(null);
+
+  useEffect(()=>{if(chatRef.current)chatRef.current.scrollTop=chatRef.current.scrollHeight;},[msgs]);
+
+  // Mantener foco en el input después de cada render
+  useEffect(()=>{
+    if(open && inputRef.current) inputRef.current.focus();
+  },[msgs, tload]);
+
+  const sendMsg=useCallback(async()=>{
+    if(!tin.trim()||tload) return;
+    const m=tin.trim();
+    setTin("");
+    const nm=[...msgs,{r:"user",c:m}];
+    setMsgs(nm);
+    setTload(true);
+    // Devolver foco al input inmediatamente tras limpiar
+    if(inputRef.current) inputRef.current.focus();
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",max_tokens:800,
+          system:"Eres el Tutor Virtual de la Academia EGOS de ECUAGOLOSINAS (empresa ecuatoriana de confitería). Ayuda a operarios con el SGC. Responde en español, tono amigable y profesional. Conocimiento: codificación Tipo-Área-NN, 10 secciones en procedimientos, pesos recolección caramelo 15kg/chupete 10kg/paleta 5kg, ciclos amasado caramelo 2/chupete varios colores 2/chupete 1 color 3, I-PR-06 alistamiento caramelo 6 puntos, I-PR-11 PCC bastonadora 74°C y egalizador 140°C, PNC meta 2%, BPM EPP obligatorio, SSO D.E.2393 LOTO.",
+          messages:nm.map(x=>({role:x.r==="user"?"user":"assistant",content:x.c}))
+        })
+      });
+      const d=await res.json();
+      setMsgs(prev=>[...prev,{r:"ai",c:d.content?.[0]?.text||"Error al responder."}]);
+    }catch{
+      setMsgs(prev=>[...prev,{r:"ai",c:"⚠️ Error de conexión. Intenta de nuevo."}]);
+    }
+    setTload(false);
+  },[tin,tload,msgs]);
+
+  const handleKey=useCallback((e)=>{
+    if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendMsg(); }
+  },[sendMsg]);
+
+  return React.createElement(React.Fragment,null,
+    open&&React.createElement("div",{style:{position:"fixed",bottom:74,right:16,width:300,height:400,background:"#fff",border:"1px solid #ddd",borderRadius:12,display:"flex",flexDirection:"column",zIndex:1000,boxShadow:"0 4px 20px rgba(0,0,0,.2)"}},
+      React.createElement("div",{style:{background:RED,color:"#fff",padding:"10px 14px",borderRadius:"12px 12px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+        React.createElement("span",{style:{fontSize:13,fontWeight:500}},"🤖 Tutor SGC — EGOS"),
+        React.createElement("button",{onClick:()=>setOpen(false),style:{background:"none",border:"none",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1}},"×")
+      ),
+      React.createElement("div",{ref:chatRef,style:{flex:1,overflow:"auto",padding:10,display:"flex",flexDirection:"column",gap:8}},
+        msgs.length===0&&React.createElement("p",{style:{fontSize:13,color:"#666",textAlign:"center",margin:"auto 0",lineHeight:1.6}},
+          `¡Hola ${userName?.split(" ")[0]||""}! 👋\nPregúntame sobre BPM, SSO, procesos o documentos del SGC.`
+        ),
+        msgs.map((m,i)=>React.createElement("div",{key:i,style:{maxWidth:"88%",alignSelf:m.r==="user"?"flex-end":"flex-start",background:m.r==="user"?RED:"#f5f5f5",color:m.r==="user"?"#fff":"#222",padding:"8px 11px",borderRadius:10,fontSize:13,lineHeight:1.5,whiteSpace:"pre-wrap"}},m.c)),
+        tload&&React.createElement("div",{style:{alignSelf:"flex-start",background:"#f5f5f5",padding:"8px 11px",borderRadius:10,fontSize:13,color:"#666"}},"Escribiendo…")
+      ),
+      React.createElement("div",{style:{padding:8,borderTop:"1px solid #eee",display:"flex",gap:6}},
+        React.createElement("input",{
+          ref:inputRef,
+          value:tin,
+          onChange:e=>setTin(e.target.value),
+          onKeyDown:handleKey,
+          placeholder:"Escribe tu pregunta…",
+          style:{flex:1,fontSize:13},
+          disabled:tload
+        }),
+        React.createElement("button",{onClick:sendMsg,disabled:tload,style:{background:RED,color:"#fff",border:"none",padding:"6px 12px",borderRadius:6,fontSize:13}},"→")
+      )
+    ),
+    React.createElement("button",{
+      onClick:()=>setOpen(o=>!o),
+      style:{position:"fixed",bottom:16,right:16,width:52,height:52,borderRadius:"50%",background:RED,color:"#fff",border:"none",fontSize:24,cursor:"pointer",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center"}
+    },"🤖")
+  );
+}
+
 function App(){
   const[courses,setCourses]=useState([]);
   const[loading,setLoading]=useState(true);
@@ -70,11 +150,6 @@ function App(){
   const[ans,setAns]=useState({});
   const[sub,setSub]=useState(false);
   const[certId,setCertId]=useState(null);
-  const[tutorOpen,setTutorOpen]=useState(false);
-  const[msgs,setMsgs]=useState([]);
-  const[tin,setTin]=useState("");
-  const[tload,setTload]=useState(false);
-  const chatRef=useRef(null);
 
   useEffect(()=>{
     fetch(SHEETS_URL)
@@ -86,8 +161,6 @@ function App(){
       })
       .catch(()=>{setLoadError(true);setLoading(false);});
   },[]);
-
-  useEffect(()=>{if(chatRef.current)chatRef.current.scrollTop=chatRef.current.scrollHeight;},[msgs]);
 
   if(loading) return React.createElement(Loading);
 
@@ -102,52 +175,8 @@ function App(){
   const certs=Object.values(prog).filter(v=>v==="cert").length;
   const passed2=Object.values(prog).filter(v=>v==="cert"||v==="pass").length;
   const startC=(c)=>{setAc(c);setLi(0);setQuizMode(false);setAns({});setSub(false);setScreen("course");};
-  const submitQ=()=>{
-    setSub(true);
-    const ok=ac.quiz.filter((q,i)=>ans[i]===q.a).length;
-    if(ok/ac.quiz.length>=0.7) setProg(p=>({...p,[ac.id]:"cert"}));
-  };
   const score=sub?ac?.quiz.filter((q,i)=>ans[i]===q.a).length:0;
   const pass2=sub&&score/(ac?.quiz.length||1)>=0.7;
-
-  const sendMsg=async()=>{
-    if(!tin.trim()||tload)return;
-    const m=tin.trim();setTin("");
-    const nm=[...msgs,{r:"user",c:m}];
-    setMsgs(nm);setTload(true);
-    try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",max_tokens:800,
-          system:"Eres el Tutor Virtual de la Academia EGOS de ECUAGOLOSINAS (empresa ecuatoriana de confitería). Ayuda a operarios con el SGC. Responde en español, tono amigable y profesional. Conocimiento: codificación Tipo-Área-NN, 10 secciones en procedimientos, pesos recolección caramelo 15kg/chupete 10kg/paleta 5kg, ciclos amasado caramelo 2/chupete varios colores 2/chupete 1 color 3, I-PR-06 alistamiento caramelo 6 puntos, I-PR-11 PCC bastonadora 74°C y egalizador 140°C, PNC meta 2%, BPM EPP obligatorio, SSO D.E.2393 LOTO.",
-          messages:nm.map(x=>({role:x.r==="user"?"user":"assistant",content:x.c}))
-        })
-      });
-      const d=await res.json();
-      setMsgs([...nm,{r:"ai",c:d.content?.[0]?.text||"Error al responder."}]);
-    }catch{setMsgs([...nm,{r:"ai",c:"⚠️ Error de conexión. Intenta de nuevo."}]);}
-    setTload(false);
-  };
-
-  const Tutor=()=>React.createElement(React.Fragment,null,
-    tutorOpen&&React.createElement("div",{style:{position:"fixed",bottom:74,right:16,width:300,height:400,background:"#fff",border:"1px solid #ddd",borderRadius:12,display:"flex",flexDirection:"column",zIndex:1000,boxShadow:"0 4px 20px rgba(0,0,0,.2)"}},
-      React.createElement("div",{style:{background:RED,color:"#fff",padding:"10px 14px",borderRadius:"12px 12px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}},
-        React.createElement("span",{style:{fontSize:13,fontWeight:500}},"🤖 Tutor SGC — EGOS"),
-        React.createElement("button",{onClick:()=>setTutorOpen(false),style:{background:"none",border:"none",color:"#fff",fontSize:18,cursor:"pointer"}},"×")
-      ),
-      React.createElement("div",{ref:chatRef,style:{flex:1,overflow:"auto",padding:10,display:"flex",flexDirection:"column",gap:8}},
-        msgs.length===0&&React.createElement("p",{style:{fontSize:13,color:"#666",textAlign:"center",margin:"auto 0",lineHeight:1.6}},`¡Hola ${user?.name?.split(" ")[0]||""}! 👋\nPregúntame sobre BPM, SSO, procesos o documentos del SGC.`),
-        msgs.map((m,i)=>React.createElement("div",{key:i,style:{maxWidth:"88%",alignSelf:m.r==="user"?"flex-end":"flex-start",background:m.r==="user"?RED:"#f5f5f5",color:m.r==="user"?"#fff":"#222",padding:"8px 11px",borderRadius:10,fontSize:13,lineHeight:1.5,whiteSpace:"pre-wrap"}},m.c)),
-        tload&&React.createElement("div",{style:{alignSelf:"flex-start",background:"#f5f5f5",padding:"8px 11px",borderRadius:10,fontSize:13,color:"#666"}},"Escribiendo…")
-      ),
-      React.createElement("div",{style:{padding:8,borderTop:"1px solid #eee",display:"flex",gap:6}},
-        React.createElement("input",{value:tin,onChange:e=>setTin(e.target.value),onKeyDown:e=>e.key==="Enter"&&sendMsg(),placeholder:"Escribe tu pregunta…",style:{flex:1,fontSize:13}}),
-        React.createElement("button",{onClick:sendMsg,disabled:tload,style:{background:RED,color:"#fff",border:"none",padding:"6px 12px",borderRadius:6,fontSize:13}},"→")
-      )
-    ),
-    React.createElement("button",{onClick:()=>setTutorOpen(o=>!o),style:{position:"fixed",bottom:16,right:16,width:52,height:52,borderRadius:"50%",background:RED,color:"#fff",border:"none",fontSize:24,cursor:"pointer",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center"}},"🤖")
-  );
 
   if(screen==="login") return React.createElement("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"2rem 1rem",background:"#f5f5f5"}},
     React.createElement("div",{style:{width:"100%",maxWidth:380,background:"#fff",borderRadius:14,border:"1px solid #e5e5e5",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)"}},
@@ -192,7 +221,7 @@ function App(){
         React.createElement("p",{style:{fontSize:11,color:"#aaa",margin:"0 0 16px"}},`Código: ${c.code} · ${new Date().toLocaleDateString("es-EC")} · Versión 0`),
         React.createElement("button",{onClick:()=>window.print(),style:{background:RED,color:"#fff",border:"none",padding:"9px 22px",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:500}},"🖨️ Imprimir certificado")
       ),
-      React.createElement(Tutor)
+      React.createElement(Tutor,{userName:user?.name})
     );
   }
 
@@ -241,7 +270,7 @@ function App(){
         ))
       ),
       !sub
-        ?React.createElement("button",{onClick:submitQ,disabled:Object.keys(ans).length<ac.quiz.length,style:{width:"100%",background:RED,color:"#fff",border:"none",padding:"11px 0",borderRadius:8,cursor:"pointer",fontSize:14,fontWeight:500,opacity:Object.keys(ans).length<ac.quiz.length?0.5:1}},`Enviar Respuestas (${Object.keys(ans).length}/${ac.quiz.length})`)
+        ?React.createElement("button",{onClick:()=>{setSub(true);const ok=ac.quiz.filter((q,i)=>ans[i]===q.a).length;if(ok/ac.quiz.length>=0.7)setProg(p=>({...p,[ac.id]:"cert"}));},disabled:Object.keys(ans).length<ac.quiz.length,style:{width:"100%",background:RED,color:"#fff",border:"none",padding:"11px 0",borderRadius:8,cursor:"pointer",fontSize:14,fontWeight:500,opacity:Object.keys(ans).length<ac.quiz.length?0.5:1}},`Enviar Respuestas (${Object.keys(ans).length}/${ac.quiz.length})`)
         :React.createElement("div",{style:{background:pass2?"#e8f5e9":"#ffebee",border:`1.5px solid ${pass2?"#4caf50":"#f44336"}`,borderRadius:12,padding:"1.5rem",textAlign:"center"}},
           React.createElement("div",{style:{fontSize:36,marginBottom:10}},pass2?"🎉":"📚"),
           React.createElement("h3",{style:{margin:"0 0 6px",color:pass2?"#1b5e20":"#b71c1c",fontSize:18}},pass2?"¡Aprobado!":"No aprobado"),
@@ -253,7 +282,7 @@ function App(){
           )
         )
     ),
-    React.createElement(Tutor)
+    React.createElement(Tutor,{userName:user?.name})
   );
 
   return React.createElement("div",{style:{maxWidth:800,margin:"0 auto",padding:"1rem 1rem 80px"}},
@@ -309,7 +338,7 @@ function App(){
         );
       })
     ),
-    React.createElement(Tutor)
+    React.createElement(Tutor,{userName:user?.name})
   );
 }
 ReactDOM.render(React.createElement(App),document.getElementById("root"));
